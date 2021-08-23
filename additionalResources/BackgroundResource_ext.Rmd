@@ -199,7 +199,7 @@ params2@linetype <- moreTypes
 
 
 
-## Run project() using the newly defined Param object 
+### Run project() using the newly defined Param object 
 
 Params2 now includes a pp and a bb (INVERTEBRATE) background spectrum, let's check if it works
 
@@ -310,54 +310,6 @@ params3<-setParams(params3)
 sim3 <- project(params3, t_max = 100, effort = 0)
 plotSpectra2(sim3)
 plotDiet2(sim3)
-
-```
-
-
-# Test
-
-is the plotDiet wrong or mizer?
-checking by adding a background with 0 in the interaction and checking if biomass changes
-made the third background into 0
-checking differences between sim2 and sim3
-
-```{r eval =F}
-a2 <- getBiomass(sim2)
-a3 <- getBiomass(sim3)
-
-diff <- a2[,5] - a3[,5]
-sum(diff)
-
-
-b2 <- sim2@n_pp[100,]
-b3 <- sim3@n_pp[100,]
-
-diffPlkt <- b2 - b3
-sum(diffPlkt)
-```
-
-
-```{r eval = F}
-
-params <- sim3@params
-n <- sim3@n[100,,]
-n_pp <- sim3@n_pp[100,]
-n_other <- sim3@n_other[100,]
-
-
-idx_sp <- (length(params@w_full) - length(params@w) + 1):length(params@w_full)
-    prey <- #outer(params@species_params$interaction_resource, n_pp) +
-        outer(params@species_params$interaction_background_pelagic, n_other$background_pelagic) 
-    prey[, idx_sp] <- prey[, idx_sp] + params@interaction %*% n
-    prey <- sweep(prey, 2, params@w_full * params@dw_full, "*")
-    avail_energy <- Re(base::t(mvfft(base::t(params@ft_pred_kernel_e) * 
-                                         mvfft(base::t(prey)),
-                                     inverse = TRUE))) / length(params@w_full)
-    avail_energy <- avail_energy[, idx_sp, drop = FALSE]
-    avail_energy[avail_energy < 1e-18] <- 0
-    
-    params@search_vol * avail_energy
-
 
 ```
 
