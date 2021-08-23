@@ -1,0 +1,363 @@
+---
+title: "Background resource extension"
+output:
+  html_document:
+    toc: yes
+    fig_width: 10
+    fig_height: 5
+---
+
+
+## Load libraries
+
+Mizer 2.0.1 updated at 23/05/2020 or later version is needed to use the background extension. 
+
+ First and best option: download the most updated version of the package directly from GitHub using devtools::install_github("sizespectrum/mizer") 
+
+
+```{r message=FALSE, warning=FALSE}
+# devtools::install_github("sizespectrum/mizer") # run only once
+library(mizer)
+library(viridisLite)
+library(viridis)
+library(ggplot2)
+library(ggrepel)
+library(tidyverse)
+library(mizerExperimental)
+library(mizerHowTo)
+source("utility.R")
+```
+
+## Set up multispecies model
+my parameters
+
+```{r message=FALSE, warning=FALSE}
+# laoding calibrated simulation
+sim <- readRDS("sim_optim3_KP.RDS")
+params <- sim@params
+```
+
+
+Need to edit resource interaction matrix? Default is 1 
+```{r message=FALSE, warning=FALSE, eval = FALSE}
+
+#KP: changed the interaction resource to 1? I think I need to change numbers based on who is eating it?
+params@species_params$interaction_resource <-c(1,1,1,1,1)
+# sim_loop@params@species_params$interaction_resource
+
+params <- setParams(sim@params)
+
+# create the param object
+# note: some def values are different from old mizer (e.g. kappa)
+```
+
+## Add a second background spectrum to the Param object
+
+To create a new component, the background resource spectrum, you need to use setComponent(). See **extension.r** in Mizer package for a detailed description of this function and its arguments 
+
+In brief, setComponent (params, component, initial_value, dynamics_fun, encounter_fun, mort_fun, component_params) 
+
+params = A MizerParams object  
+component = Name of the component  
+initial_value = Initial value of the component  
+dynamics_fun = Name of function to calculate value at the next time step  
+encounter_fun = Name of function to calculate contribution to encounter rate. Optional  
+mort_fun = Name of function to calculate contribution to the mortality rate. Optional  
+component_params = Named list of parameters needed by the component functions. Optional    
+
+### How it works 
+
+We need to specify our own functions (dynamics, encounter and mortality) for each background resource component we'd like to add. 
+
+This can be done in 6 steps:   
+
+1. Specify the background dynamics function  
+dynamics_fun = background_bb_semichemostat, which is the same as resource_semichemostat() in **resource_dynamics.r**, but uses newly defined rr_pp (here called rate) and cc_pp (here called capacity), and it includes the mortality function  
+
+```{r}
+
+background_invertebrate_semichemostat <- function(params, n_other, rates, dt, ...) {
+    
+    # locate where (which params slot) the parameters needed for this function are stored 
+    component <- "background_invertebrate"
+    c <- params@other_params[[component]] 
+    
+    # name of interaction parameter for this component in species_params
+    interaction_component <- paste0("interaction_", component)
+    interaction <- params@species_params[[interaction_component]]
+    
+    # Step 3: specify the background mortality function
+    mort <- as.vector(interaction  %*% rates$pred_rate)
+    
+    # specify the background dynamics function. This is the same as resource_semichemostat() - see above
+    tmp <- c$rate * c$capacity / (c$rate + mort) 
+    return(tmp - (tmp - n_other[[component]]) * exp(-(c$rate + mort) * dt))
+}
+```
+
+2. Specify the encounter function  
+encounter_fun = background_bb_encounter, which is same as mizerEncounter() in **project_methods.r**, but now n_pp is the sum of the 2 background spectra  
+
+```{r}
+
+background_invertebrate_encounter <- function(params, n, n_pp, n_other, ...) {
+    idx_sp <- (length(params@w_full) - length(params@w) + 1):length(params@w_full)
+    prey <- #outer(params@species_params$interaction_resource, n_pp) +
+        outer(params@species_params$interaction_background_invertebrate, n_other$background_invertebrate) 
+    # prey[, idx_sp] <- prey[, idx_sp] + params@interaction %*% n
+    prey <- sweep(prey, 2, params@w_full * params@dw_full, "*")
+    avail_energy <- Re(base::t(mvfft(base::t(params@ft_pred_kernel_e) * 
+                                         mvfft(base::t(prey)),
+                                     inverse = TRUE))) / length(params@w_full)
+    avail_energy <- avail_energy[, idx_sp, drop = FALSE]
+    avail_energy[avail_energy < 1e-18] <- 0
+    
+    params@search_vol * avail_energy
+}
+
+```
+
+3. Specify the mortality function  
+mort_fun = mort, which is the same as mizerResourceMort() in **project_methods.r**, but uses different interaction values (interaction_resource) and pred_rate. Mortality in this case is specified as part of background_bb_semichemostat(). For any other extensions you'd need something like: 
+
+```{r}
+
+# background_bb_mortality<-...mizerMortality()...
+
+```
+
+4. Set up parameters   
+Calcualate rate and capacity used in background_bb_semichemostat() and given kappa, lambda etc. for the bb spectrum
+
+```{r}
+## KP: These were the values from Annabelle, not sure if they need changing
+kappa <- 0.001
+lambda <- 2.05 
+r_pp <- 10
+n <- 0.666 
+w_pp_cutoff <- 100
+rate <- r_pp * params@w_full^(n - 1)
+capacity <- kappa * params@w_full^(-lambda)
+capacity[params@w_full > w_pp_cutoff] <- 0
+w_pp_min <- 1e-6 # set minimum size of new resource 
+capacity[params@w_full > w_pp_cutoff] <- 0
+
+# Set interaction species-background_invertebrate - i.e. proportion available to each species.  
+# this new species param column needs to be named as "interaction_" + component name
+params@species_params$interaction_background_invertebrate <- c(1,1,1,1,1)
+
+#params@species_params
+## so now we have an interactions for all species on both resources.
+```
+
+5. Add components   
+Add the background bb resource spectrum to the params object using setComponent()
+
+```{r}
+
+params2 <- setComponent(params = params, component = "background_invertebrate",
+                        initial_value = params@initial_n_pp, 
+                        dynamics_fun =  "background_invertebrate_semichemostat",
+                        encounter_fun = "background_invertebrate_encounter",
+                        component_params = list(rate = rate, 
+                                                capacity = capacity))
+
+```
+
+6. Update the encounter function
+
+```{r}
+
+# params2 <- setRateFunction(params2, "Encounter", "background_bb_encounter")
+
+
+```
+
+7. Update the mortality function   
+Mortality in this case is specified as part of background_bb_semichemostat() so you don't need to update this function. For any other extensions you'd need to run the line below: 
+
+```{r}
+
+# params2<-setRateFunction(params2, "Mortality", "background_benthic_mortality")
+
+```
+
+8. Update the colors in the params object
+
+If you want to plot something, it needs to appear in `params@linecolour` and `params@linetype`
+Use the same names as in `setComponent()`
+
+```{r}
+
+moreColors <- c(params2@linecolour, "tomato") # add as many colors as necessary
+names(moreColors)[(length(params2@linecolour)+1):length(moreColors)] <- c("background_invertebrate") # names for the colors 
+params2@linecolour <- moreColors
+moreTypes <- c(params2@linetype, rep("dashed",1)) # add the types, need to be one type per new background | can be the same types
+names(moreTypes) <- names(moreColors)
+params2@linetype <- moreTypes
+```
+
+
+
+## Run project() using the newly defined Param object 
+
+Params2 now includes a pp and a bb (INVERTEBRATE) background spectrum, let's check if it works
+
+```{r message=FALSE}
+
+params2<-setParams(params2)
+
+sim2 <- project(params2, t_max = 100, effort = 0)
+plotSpectra2(sim2)
+plotDiet2(sim2)
+
+```
+
+
+
+
+# Adding a third background
+
+```{r}
+# step 1
+background_pelagic_semichemostat <- function(params, n_other, rates, dt, ...) {
+    
+    # locate where (which params slot) the parameters needed for this function are stored 
+    component <- "background_pelagic"
+    c <- params@other_params[[component]] 
+    
+    # name of interaction parameter for this component in species_params
+    interaction_component <- paste0("interaction_", component)
+    interaction <- params@species_params[[interaction_component]]
+    
+    # Step 3: specify the background mortality function
+    mort <- as.vector(interaction  %*% rates$pred_rate)
+    
+    # specify the background dynamics function. This is the same as resource_semichemostat() - see above
+    tmp <- c$rate * c$capacity / (c$rate + mort) 
+    return(tmp - (tmp - n_other[[component]]) * exp(-(c$rate + mort) * dt))
+}
+
+
+# step2
+
+
+background_pelagic_encounter <- function(params, n, n_pp, n_other, ...) {
+    idx_sp <- (length(params@w_full) - length(params@w) + 1):length(params@w_full)
+    prey <- #outer(params@species_params$interaction_resource, n_pp) +
+        outer(params@species_params$interaction_background_pelagic, n_other$background_pelagic) 
+    # prey[, idx_sp] <- prey[, idx_sp] + params@interaction %*% n
+    prey <- sweep(prey, 2, params@w_full * params@dw_full, "*")
+    avail_energy <- Re(base::t(mvfft(base::t(params@ft_pred_kernel_e) * 
+                                         mvfft(base::t(prey)),
+                                     inverse = TRUE))) / length(params@w_full)
+    avail_energy <- avail_energy[, idx_sp, drop = FALSE]
+    avail_energy[avail_energy < 1e-18] <- 0
+    
+    params@search_vol * avail_energy
+}
+
+
+# step4
+
+## KP: These were the values from Annabelle, not sure if they need changing
+kappa <- 0.001
+lambda <- 2.05 
+r_pp <- 10
+n <- 0.666 
+w_pp_cutoff <- 100
+rate <- r_pp * params@w_full^(n - 1)
+capacity <- kappa * params@w_full^(-lambda)
+capacity[params@w_full > w_pp_cutoff] <- 0
+w_pp_min <- 1e-6 # set minimum size of new resource 
+capacity[params@w_full > w_pp_cutoff] <- 0
+
+# Set interaction species-background_invertebrate - i.e. proportion available to each species.  
+# this new species param column needs to be named as "interaction_" + component name
+params2@species_params$interaction_background_pelagic <- c(0,0,0,0,1)
+
+#params@species_params
+## so now we have an interactions for all species on both resources.
+
+# step5
+
+params3 <- setComponent(params = params2, component = "background_pelagic",
+                        initial_value = params@initial_n_pp, 
+                        dynamics_fun =  "background_pelagic_semichemostat",
+                        encounter_fun = "background_pelagic_encounter",
+                        component_params = list(rate = rate, 
+                                                capacity = capacity))
+
+#step 8
+
+moreColors <- c(params3@linecolour, "aquamarine3") # add as many colors as necessary
+names(moreColors)[(length(params3@linecolour)+1):length(moreColors)] <- c("background_pelagic") # names for the colors 
+params3@linecolour <- moreColors
+moreTypes <- c(params3@linetype, rep("dashed",1)) # add the types, need to be one type per new background | can be the same types
+names(moreTypes) <- names(moreColors)
+params3@linetype <- moreTypes
+
+
+```
+
+
+## Run project
+
+```{r message=FALSE}
+
+params3<-setParams(params3)
+
+sim3 <- project(params3, t_max = 100, effort = 0)
+plotSpectra2(sim3)
+plotDiet2(sim3)
+
+```
+
+
+# Test
+
+is the plotDiet wrong or mizer?
+checking by adding a background with 0 in the interaction and checking if biomass changes
+made the third background into 0
+checking differences between sim2 and sim3
+
+```{r eval =F}
+a2 <- getBiomass(sim2)
+a3 <- getBiomass(sim3)
+
+diff <- a2[,5] - a3[,5]
+sum(diff)
+
+
+b2 <- sim2@n_pp[100,]
+b3 <- sim3@n_pp[100,]
+
+diffPlkt <- b2 - b3
+sum(diffPlkt)
+```
+
+
+```{r eval = F}
+
+params <- sim3@params
+n <- sim3@n[100,,]
+n_pp <- sim3@n_pp[100,]
+n_other <- sim3@n_other[100,]
+
+
+idx_sp <- (length(params@w_full) - length(params@w) + 1):length(params@w_full)
+    prey <- #outer(params@species_params$interaction_resource, n_pp) +
+        outer(params@species_params$interaction_background_pelagic, n_other$background_pelagic) 
+    prey[, idx_sp] <- prey[, idx_sp] + params@interaction %*% n
+    prey <- sweep(prey, 2, params@w_full * params@dw_full, "*")
+    avail_energy <- Re(base::t(mvfft(base::t(params@ft_pred_kernel_e) * 
+                                         mvfft(base::t(prey)),
+                                     inverse = TRUE))) / length(params@w_full)
+    avail_energy <- avail_energy[, idx_sp, drop = FALSE]
+    avail_energy[avail_energy < 1e-18] <- 0
+    
+    params@search_vol * avail_energy
+
+
+```
+
