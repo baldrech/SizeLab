@@ -42,10 +42,10 @@ Need to edit resource interaction matrix? Default is 1
 ```{r message=FALSE, warning=FALSE, eval = FALSE}
 
 #KP: changed the interaction resource to 1? I think I need to change numbers based on who is eating it?
-params@species_params$interaction_resource <-c(1,1,1,1,1)
+params@species_params$interaction_resource <-c(1,0,0,1,1)
 # sim_loop@params@species_params$interaction_resource
 
-params <- setParams(sim@params)
+params <- setParams(params)
 
 # create the param object
 # note: some def values are different from old mizer (e.g. kappa)
