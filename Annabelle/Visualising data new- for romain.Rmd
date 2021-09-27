@@ -1,0 +1,250 @@
+---
+title: "Data visualisation"
+output: html_document
+---
+
+Load content
+```{r, include=FALSE}
+library(mizer)
+library(viridisLite)
+library(viridis)
+library(ggplot2)
+library(ggrepel)
+library(tidyverse)
+library(mizerExperimental)
+library(mizerHowTo)
+
+#sim_loop <- readRDS("sim_optim3.RDS")
+
+sim_new <- readRDS("../additionalResources/sim_optim3_AE.RDS")
+```
+
+Summarise data for diet matrix
+
+```{r, include=FALSE}
+#df_dietbiomass <- getDiet(sim_loop@params, proportion = F)
+df_dietbiomass <- getDiet(sim_new@params, proportion= F)
+
+#make 2D not an array
+plot_dat <- melt(df_dietbiomass)
+dim(plot_dat)
+colnames(plot_dat) <- c("Predator", "size", "Prey", "biomass")
+#summarise by biomass
+df_summary <- plot_dat %>% 
+  group_by(Predator, Prey) %>% 
+  summarise(totalbiomass = sum(biomass))
+#convert data frame to matrix
+##matrix_biomass_prey <- pivot_wider(df_summary, names_from = Prey, values_from = totalbiomass)
+matrix_biomass_pred <- pivot_wider(df_summary, names_from = Predator, values_from = totalbiomass)
+#check format is in matrix form?
+##Tmatrix_biomass_prey <- as.matrix(matrix_biomass_prey)
+Tmatrix_biomass_pred <- as.matrix(matrix_biomass_pred)
+#rename column with predator names
+rownames(Tmatrix_biomass_pred) <- Tmatrix_biomass_pred[,1]
+#remove column
+matrix_edit <- Tmatrix_biomass_pred[,-1] 
+#make into adjacency matrix?? I.e. square it off.
+#matrix_noresource <- matrix_edit[-18,]
+
+```
+
+
+Having issues here: need to come back and fix properly
+```{r}
+#reordering a matrix by w_inf: using Romains code from old NS model 
+
+# ordering by asymptotic size for color gradient
+# add resource to params for graphs
+# SOparams <- sim_new@params@species_params
+# Export to edit and add resource
+# write.csv(SOparams, "SOparams.csv")
+# read in edited params file
+SOparams <- read.csv("SOparams.csv")
+
+# Matrix
+#First add resource to column
+bothresource_matrix <- cbind(matrix_edit, c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+colnames(bothresource_matrix) <- SOparams[,1]
+
+#order params file
+SOparams_r <- SOparams[order(SOparams$w_inf),]
+rownames(SOparams_r) <- SOparams_r[,1]
+SOparams_r <- SOparams_r[,-1]
+
+#then order matrix
+#columns re-ordered
+matrix_ordered <- select(as.data.frame(bothresource_matrix),SOparams_r$species)
+#something is happening here... rows and columns switching?
+matrix_ordered <- t(as.matrix(select(as.data.frame(t(matrix_ordered)),SOparams_r$species)))
+
+
+
+```
+
+
+
+Networks with igraph: no resource added here.
+
+```{r}
+#igraph
+library(igraph)
+#colours
+library(RColorBrewer)
+
+w_inf <- sim_new@params@species_params$w_inf
+
+network <- graph_from_adjacency_matrix(matrix_noresource, weighted= TRUE, mode= "directed")
+
+V(network)$size <- log(w_inf)*3
+E(network)$width <- E(network)$weight/1000
+colfunc <- colorRampPalette(c("gray80", "darkred"))
+cols<-colfunc(17)
+V(network)$color <- cols
+vertex_attr(network)
+V(network)$label <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17)
+
+plot(network, layout= layout.circle, vertex.label.color="black",vertex.label.cex=0.6,
+    edge.color="grey", main= "Biomass flow network", 
+     edge.arrow.size = 0.1, vertex.label.family="Helvetica", vertex.label.dist= 0, vertex.label.degree= pi/2, edge.curved=.1)
+legend(x=1.5, y= 0.4, c(V(network)$name), col = cols, pch = 17, pt.bg = V(network)$label, pt.cex =0.5, cex = 0.6, bty = "n", ncol=2)
+
+#how to get numbers in the legend next to species names
+#how to change the color of the edges separately to match each source.
+#do I want size of vertexes to be w_inf or the biomass? Cause then we can look at biomass change....
+
+# library(circlize)
+# chordDiagramFromMatrix(matrix_noresource) #check error- why does this not work
+
+```
+
+
+```{r}
+library(igraph)
+#w_inf <- sim_loop@params@species_params$w_inf
+
+network_r <- graph_from_adjacency_matrix(matrix_ordered, weighted= TRUE, mode= "directed")
+
+#this isn't working
+V(network_r)$size <- log(SOparams_r$w_inf)*3
+
+E(network_r)$width <- E(network_r)$weight/3000
+colfunc <- colorRampPalette(c("gray80", "darkred"))
+cols<-colfunc(18)
+V(network_r)$color <- cols
+vertex_attr(network_r)
+V(network_r)$label <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18)
+
+#to change the edge colours: can do by colouring from the source 
+edge.start <- ends(network_r, es=E(network_r), names=F)[,1]
+edge.col <- V(network_r)$color[edge.start]
+
+plot(network_r, layout= layout.circle, vertex.label.color="black",vertex.label.cex=0.6,
+     main= "Biomass flow network", edge.color=edge.col,
+     edge.arrow.size = 0.1, vertex.label.family="Helvetica", vertex.label.dist= 0, vertex.label.degree= pi/2, edge.curved=.1)
+legend(x=1.5, y= 0.4, c(V(network_r)$name), col = cols, pch = 18, pt.bg = V(network_r)$label, pt.cex =0.5, cex = 0.6, bty = "n", ncol=2)
+
+#to change edges based on increasing or decreasing flow, would need to add a new attribute probably.
+#currently looks like the flow is going in the wrong direction! (i.e. from predator to prey). Need to redo the data summaru to get the opposite matrix format (prey in rows?)
+
+```
+
+
+
+incidence matrix: probably not what I want/ won't actually work?
+```{r}
+#incidence matrix
+#have mode = in because currently have prey in columns not rows
+# network_i <- graph_from_incidence_matrix(matrix_edit, mode= "in", weighted= TRUE, directed = TRUE)
+# #weight of edge is an edge attribute
+# plot(network_i, layout= layout.circle, vertex.label.color="black", 
+#      vertex.color= gradient(17), edge.color="grey", main= "Biomass flow network",
+#      edge.arrow.size = 0.3, vertex.label.family="Helvetica", vertex.label.dist= 2, vertex.label.degree= pi/2) 
+# E(network_i)$width <- E(network_i)$weight #why is this suddently not working
+# 
+# vertex.attributes(network_i)
+```
+
+Looking at biomass flow CHANGE between two simulations. This is from the Experiments file, need to run sim_exp_a
+
+```{r}
+##first need to get diet information from new simulation.
+#df_dietbiomass <- getDiet(sim_loop@params, proportion = F)
+df_dietbiomass_x <- getDiet(sim_exp_a@params, proportion= F)
+
+#make 2D not an array
+plot_dat_x <- melt(df_dietbiomass_x)
+dim(plot_dat_x)
+colnames(plot_dat_x) <- c("Predator", "size", "Prey", "biomass")
+#summarise by biomass
+df_summary_x <- plot_dat_x %>% 
+  group_by(Predator, Prey) %>% 
+  summarise(totalbiomass = sum(biomass))
+#convert data frame to matrix
+##matrix_biomass_prey <- pivot_wider(df_summary, names_from = Prey, values_from = totalbiomass)
+matrix_biomass_pred_x <- pivot_wider(df_summary_x, names_from = Predator, values_from = totalbiomass)
+#check format is in matrix form?
+##Tmatrix_biomass_prey <- as.matrix(matrix_biomass_prey)
+Tmatrix_biomass_pred_x <- as.matrix(matrix_biomass_pred_x)
+#rename column with predator names
+rownames(Tmatrix_biomass_pred_x) <- Tmatrix_biomass_pred_x[,1]
+#remove column
+matrix_edit_x <- Tmatrix_biomass_pred_x[,-1] 
+
+#add resource and re-order matrix
+#bothresource_matrix <- rbind(matrix_edit, c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+bothresource_matrix_x <- cbind(matrix_edit_x, c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+#rename columns (note using SOparams for this not the params from this model- doesn't matter if just using the names)
+colnames(bothresource_matrix_x) <- SOparams[,1]
+#reorder
+matrix_ordered_x <- select(as.data.frame(bothresource_matrix_x),SOparams_r$species)
+matrix_ordered_x <- as.matrix(select(as.data.frame(t(matrix_ordered_x)),SOparams_r$species))
+
+
+## Now need to make a network diagram
+
+network_x <- graph_from_adjacency_matrix(matrix_ordered_x, weighted= TRUE, mode= "directed")
+
+V(network_x)$size <- log(SOparams_r$w_inf)*3
+E(network_x)$width <- E(network_x)$weight/3000
+colfunc_x <- colorRampPalette(c("gray80", "darkred"))
+cols_x <-colfunc_x(18)
+V(network_x)$color <- cols_x
+vertex_attr(network_x)
+V(network_x)$label <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18)
+
+#to change the edge colours: can do by colouring from the source 
+edge.start_x <- ends(network_x, es=E(network_x), names=F)[,1]
+edge.col_x <- V(network_x)$color[edge.start_x]
+
+plot(network_x, layout= layout.circle, vertex.label.color="black",vertex.label.cex=0.8,
+     main= "Biomass flow network_x", edge.color=edge.col_x,
+     edge.arrow.size = 0.1, vertex.label.family="Helvetica", vertex.label.dist= 0, vertex.label.degree= pi/2, edge.curved=.1)
+legend(x=1.5, y= 0.4, c(V(network_x)$name), col = cols_x, pch = 18, pt.cex =0.5, cex = 0.6, bty = "n", ncol=2)
+
+#compare with original 
+plot(network_r, layout= layout.circle, vertex.label.color="black", vertex.label.cex=0.8,
+     main= "Biomass flow network", edge.color=edge.col,
+     edge.arrow.size = 0.1, vertex.label.family="Helvetica", vertex.label.dist= 0, vertex.label.degree= pi/2, edge.curved=.1)
+legend(x=1.5, y= 0.4, c(V(network_r)$name), col = cols, pch = 18, pt.cex =0.5, cex = 0.6, bty = "n", ncol=2)
+
+#pt.bg = V(network_r)$label,
+#ok nearly there!!
+```
+
+
+
+```
+
+
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+```
+

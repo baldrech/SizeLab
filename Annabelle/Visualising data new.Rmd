@@ -1,0 +1,249 @@
+---
+title: "Data visualisation"
+output: html_document
+---
+
+Load content
+```{r, include=FALSE}
+library(mizer)
+library(viridisLite)
+library(viridis)
+library(ggplot2)
+library(ggrepel)
+library(tidyverse)
+library(mizerExperimental)
+library(mizerHowTo)
+
+sim_loop <- readRDS("../additionalResources/sim_optim3_AE.RDS")
+```
+
+Summarise data for diet matrix
+
+```{r, include=FALSE}
+df_dietbiomass <- getDiet(sim_loop@params, proportion = F)
+
+#make 2D not an array
+plot_dat <- melt(df_dietbiomass)
+dim(plot_dat)
+colnames(plot_dat) <- c("Predator", "size", "Prey", "biomass")
+#summarise by biomass
+df_summary <- plot_dat %>% 
+  group_by(Predator, Prey) %>% 
+  summarise(totalbiomass = sum(biomass))
+#convert data frame to matrix
+matrix_biomass_prey <- pivot_wider(df_summary, names_from = Prey, values_from = totalbiomass)
+#check format is in matrix form?
+Tmatrix_biomass_prey <- as.matrix(matrix_biomass_prey)
+#rename column with predator names
+rownames(Tmatrix_biomass_prey) <- Tmatrix_biomass_prey[,1]
+#remove column
+matrix_edit <- Tmatrix_biomass_prey[,-1] 
+#make into adjacency matrix?? I.e. square it off.
+matrix_noresource <- matrix_edit[,-18]
+
+```
+
+```{r}
+#reordering a matrix by w_inf: using Romains code from old NS model 
+
+# ordering by asymptotic size for color gradient
+SOParams <- sim_loop@params@species_params
+SOParams <- SOParams[order(SOParams$w_inf),]
+
+# need to order the matrix as well
+
+matrix_ordered <- select(as.data.frame(matrix_noresource),SOParams$species)
+
+matrix_ordered <- as.matrix(select(as.data.frame(t(matrix_ordered)),SOParams$species))
+
+inter <- matrix(as.numeric(matrix_ordered), ncol = dim(matrix_ordered)[1], dimnames = list("predator" = dimnames(matrix_ordered)[[1]], "prey" = dimnames(matrix_ordered)[[2]]) )
+
+```
+
+
+
+Networks with igraph: no resource added here.
+
+```{r}
+#igraph
+library(igraph)
+#colours
+library(RColorBrewer)
+
+w_inf <- sim_loop@params@species_params$w_inf
+
+network <- graph_from_adjacency_matrix(matrix_noresource, weighted= TRUE, mode= "directed")
+
+V(network)$size <- log(w_inf)*3
+E(network)$width <- E(network)$weight/10000
+colfunc <- colorRampPalette(c("gray80", "darkred"))
+cols<-colfunc(17)
+V(network)$color <- cols
+vertex_attr(network)
+V(network)$label <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17)
+
+plot(network, layout= layout.circle, vertex.label.color="black",vertex.label.cex=0.6,
+    edge.color="grey", main= "Biomass flow network", 
+     edge.arrow.size = 0.1, vertex.label.family="Helvetica", vertex.label.dist= 0, vertex.label.degree= pi/2, edge.curved=.1)
+legend(x=1.5, y= 0.4, c(V(network)$name), col = cols, pch = 17, pt.bg = V(network)$label, pt.cex =0.5, cex = 0.6, bty = "n", ncol=2)
+
+#how to get numbers in the legend next to species names
+#how to change the color of the edges separately to match each source.
+#do I want size of vertexes to be w_inf or the biomass? Cause then we can look at biomass change....
+
+# library(circlize)
+# chordDiagramFromMatrix(matrix_noresource) #check error- why does this not work
+
+```
+
+Adding resource to adjacency matrix....? just put 0's on the predator row for resource. (as matrix needs to be adjacent)
+```{r}
+
+bothresource_matrix <- rbind(matrix_edit, c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+#how to rename #18? #need to also give resource a w_inf...
+
+w_inf <- sim_loop@params@species_params$w_inf
+
+network_r <- graph_from_adjacency_matrix(bothresource_matrix, weighted= TRUE, mode= "directed")
+
+V(network_r)$size <- log(w_inf)*3
+E(network_r)$width <- E(network_r)$weight/10000
+colfunc <- colorRampPalette(c("gray80", "darkred"))
+cols<-colfunc(18)
+V(network_r)$color <- cols
+vertex_attr(network_r)
+V(network_r)$label <- c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18)
+
+#to change the edge colours: can do by colouring from the source 
+edge.start <- ends(network_r, es=E(network_r), names=F)[,1]
+edge.col <- V(network_r)$color[edge.start]
+
+plot(network_r, layout= layout.circle, vertex.label.color="black",vertex.label.cex=0.6,
+     main= "Biomass flow network", edge.color=edge.col,
+     edge.arrow.size = 0.1, vertex.label.family="Helvetica", vertex.label.dist= 0, vertex.label.degree= pi/2, edge.curved=.1)
+legend(x=1.5, y= 0.4, c(V(network_r)$name), col = cols, pch = 18, pt.bg = V(network_r)$label, pt.cex =0.5, cex = 0.6, bty = "n", ncol=2)
+
+#to change edges based on increasing or decreasing flow, would need to add a new attribute probably.
+#currently looks like the flow is going in the wrong direction! (i.e. from predator to prey). Need to redo the data summaru to get the opposite matrix format (prey in rows?)
+
+```
+
+
+
+incidence matrix: probably not what I want/ won't actually work?
+```{r}
+#incidence matrix
+#have mode = in because currently have prey in columns not rows
+network_i <- graph_from_incidence_matrix(matrix_edit, mode= "in", weighted= TRUE, directed = TRUE)
+#weight of edge is an edge attribute
+plot(network_i, layout= layout.circle, vertex.label.color="black", 
+     vertex.color= gradient(17), edge.color="grey", main= "Biomass flow network",
+     edge.arrow.size = 0.3, vertex.label.family="Helvetica", vertex.label.dist= 2, vertex.label.degree= pi/2) 
+E(network_i)$width <- E(network_i)$weight #why is this suddently not working
+
+vertex.attributes(network_i)
+```
+
+```{r}
+
+
+```
+
+
+Now I want to change position, colours and size of vertices based on w_inf.
+```{r}
+#want to add a vertex attribute: give values of w_inf to each species---
+
+#species ranking from smallest to largest (based on winf) (1-17)
+#numericV <- as.numeric(unlist(c(8,15,3,13,16,17,7,5,6,4,10,2,9,12,11,1,14)))
+
+#load in node info..
+# nodeInfo <- read.csv("attrw_inf.csv",header=TRUE,stringsAsFactors=FALSE)
+# print(nodeInfo)
+# network%v%"w_inf" <- nodeInfo$w_inf
+
+#adding vertex attribute- how to do this!!
+# network <- graph_from_adjacency_matrix(matrix_noresource, weighted= TRUE, mode= "directed") %>% 
+#   set_vertex_attr(network, name= "w_inf", index=V(network), value = numericV) #this isnt working
+
+vertex_attr(network)
+#adding colours to vertex attribute
+gradient <- colorRampPalette(c("gray80", "darkred"))
+V(network)$color <- gradient[V(network)$numericV] #this isnt working
+
+
+#removing labels, adding a legend----
+#ordering species by w_inf
+
+# spp_ordered <- sim_loop@params@species_params %>% 
+#   arrange(w_inf)
+# spp_by_w_inf <- spp_ordered$species
+# 
+# V(network)$label <- NA
+
+plot(network, layout= layout.circle, vertex.label.color="black", 
+     vertex.color= gradient(17), edge.color="grey", main= "Biomass flow network", 
+     edge.arrow.size = 0.3, vertex.label.family="Helvetica", vertex.label.dist= 2, vertex.label.degree= pi/2, edge.curved=.1)
+legend(x=1.5, y= 0.4, c(spp_by_w_inf), pt.bg = gradient, pt.cex =5, cex = 0.6, bty = "n", ncol=3)
+#add in pch= ? for point labels?
+
+
+
+#positioning...  Possibly need to group into various groups for each "level"
+#size as a plotting paramater? need to specify vertex coordinates?
+# from https://assemblingnetwork.wordpress.com/2013/07/01/network-basics-with-r-and-igraph-part-iii-of-iii/
+#maybe need to put my data into edge lists instead of a matrix?
+
+```
+
+Let's try a Snakey Diagram with diet inputs!!
+
+```{r}
+
+library(dplyr)
+library(networkD3)
+
+#think my columns and rows need to switch... prey in rows, predator in columns?
+#bring in matrix as data (but here it is as incidence matrix...)
+data <- matrix_edit
+#transform matrix to connection data frame with tidyr from tidyverse
+links <- data %>%
+  as.data.frame() %>%
+  rownames_to_column(var="source")%>%
+  gather(key="target", value = "value", -1) %>%
+  filter(value !=0)
+
+# From these flows we need to create a node data frame: it lists every entities involved in the flow
+nodes <- data.frame(
+  name=c(as.character(links$source), as.character(links$target)) %>% 
+    unique()
+)
+
+# With networkD3, connection must be provided using id, not using real name like in the links dataframe.. So we need to reformat it.
+links$IDsource <- match(links$source, nodes$name)-1 
+links$IDtarget <- match(links$target, nodes$name)-1
+
+# Make the Network
+p <- sankeyNetwork(Links = links, Nodes = nodes,
+                   Source = "IDsource", Target = "IDtarget",
+                   Value = "value", NodeID = "name", 
+                   sinksRight=FALSE)
+
+p
+
+#ok now I want it to have 5 levels is this possible?
+#resource, smaller fish, medium fish, large fish, toothfish
+
+
+```
+
+Just toothfish Sankey
+```{r}
+#want an incidence matrix with just toothfish as the predators then all species and resources as prey?
+#how do i do this 
+toothfish_matrix <- (matrix_edit[(-1,-2,-3,-4,-7,-8,-9,-10,-11,-12,-13,-14,-15,-16,-17),]) #not working
+
+
+
+```
+
