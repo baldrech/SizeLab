@@ -5,7 +5,7 @@ author:
   RF
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output:
-  # bookdown::word_document2: default
+  # word_document: default
   bookdown::pdf_document2:
     fig_caption: yes
     keep_tex: yes
@@ -62,7 +62,11 @@ And when you want to use any of these symbols verbatim, one needs to add "\\" in
 
 \#, \*, \`
 
-> block quotes using \>
+
+> write block quotes using >
+
+> style appears only in HTML for some reasons
+
 
 list of items
 
