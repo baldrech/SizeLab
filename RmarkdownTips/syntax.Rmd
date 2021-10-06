@@ -11,6 +11,8 @@ output:
     keep_tex: yes
     latex_engine: pdflatex
     toc: FALSE
+    includes:
+          in_header: preamble.tex
   html_document:
     df_print: paged
 fontfamily: mathpazo
@@ -62,21 +64,35 @@ And when you want to use any of these symbols verbatim, one needs to add "\\" in
 
 \#, \*, \`
 
+## Highlighting 
 
 > write block quotes using >
 
-> style appears only in HTML for some reasons
+> however the style appears only in HTML
 
+There is a workaround using a LateX function:
 
-list of items
+\begin{formal}
+  quote in a pdf
+\end{formal}
 
-1. one
+But you need an associated .tex file which is then given to the YAML
+
+## List of items
+
+1. one (done using 1.)
 
 2. two
 
-- not marked
+* not marked using \*
 
-- more not marked
+* more not marked
+ 
+  + nested adding +
+  
+    + doubling down
+  
+## Others
 
 Rmarkdown can also handle LateX functions such as "\\newpage"
 
@@ -206,6 +222,7 @@ other stuff?
 # Cheat sheets
 
 https://www.markdownguide.org/cheat-sheet
+
 https://bookdown.org/yihui/rmarkdown-cookbook/basics.html
 
 

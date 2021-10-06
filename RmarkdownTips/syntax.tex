@@ -111,6 +111,30 @@
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 \setcounter{secnumdepth}{5}
+
+% for adjustwidth environment
+\usepackage[strict]{changepage}
+
+% for formal definitions
+\usepackage{framed}
+% environment derived from framed.sty: see leftbar environment definition
+\definecolor{formalshade}{rgb}{0.95,0.95,1}
+
+\newenvironment{formal}{%
+  \def\FrameCommand{%
+    \hspace{1pt}%
+    {\color{gray}\vrule width 2pt}%
+    {\color{white}\vrule width 4pt}%
+    \colorbox{white}%
+  }%
+  \MakeFramed{\advance\hsize-\width\FrameRestore}%
+  \noindent\hspace{-4.55pt}% disable indenting first paragraph
+  \begin{adjustwidth}{}{7pt}%
+  \vspace{2pt}\vspace{2pt}%
+}
+{%
+  \vspace{2pt}\end{adjustwidth}\endMakeFramed%
+}
 \usepackage{setspace}\doublespacing
 \usepackage[left]{lineno}
 \usepackage{dcolumn}
@@ -185,30 +209,56 @@ And when you want to use any of these symbols verbatim, one needs to add ``\text
 
 \#, *, `
 
+\hypertarget{highlighting}{%
+\subsection{Highlighting}\label{highlighting}}
+
 \begin{quote}
 write block quotes using \textgreater{}
 \end{quote}
 
 \begin{quote}
-style appears only in HTML for some reasons
+however the style appears only in HTML
 \end{quote}
 
-list of items
+There is a workaround using a LateX function:
+
+\begin{formal}
+  quote in a pdf
+\end{formal}
+
+But you need an associated .tex file which is then given to the YAML
+
+\hypertarget{list-of-items}{%
+\subsection{List of items}\label{list-of-items}}
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
 \item
-  one
+  one (done using 1.)
 \item
   two
 \end{enumerate}
 
 \begin{itemize}
 \item
-  not marked
+  not marked using *
 \item
   more not marked
+
+  \begin{itemize}
+  \item
+    nested adding +
+
+    \begin{itemize}
+    \tightlist
+    \item
+      doubling down
+    \end{itemize}
+  \end{itemize}
 \end{itemize}
+
+\hypertarget{others}{%
+\subsection{Others}\label{others}}
 
 Rmarkdown can also handle LateX functions such as ``\textbackslash newpage''
 
@@ -403,6 +453,7 @@ other stuff?
 \section{Cheat sheets}\label{cheat-sheets}}
 
 \url{https://www.markdownguide.org/cheat-sheet}
+
 \url{https://bookdown.org/yihui/rmarkdown-cookbook/basics.html}
 
 \hypertarget{references}{%
