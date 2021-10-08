@@ -7,7 +7,6 @@ output:
     fig_height: 5
 ---
 
-
 ## Load libraries
 
 Mizer 2.0.1 updated at 23/05/2020 or later version is needed to use the background extension. 
@@ -16,20 +15,23 @@ Mizer 2.0.1 updated at 23/05/2020 or later version is needed to use the backgrou
 
 
 ```{r message=FALSE, warning=FALSE}
-devtools::install_github("sizespectrum/mizer") # run only once
+#devtools::install_github("sizespectrum/mizer") # run only once
 library(mizer)
 library(viridisLite)
 library(viridis)
 library(ggplot2)
-library(ggrepel)
+ library(ggrepel)
 library(tidyverse)
-remotes::install_github("sizespectrum/mizerExperimental")
+#remotes::install_github("sizespectrum/mizerExperimental")
 library(mizerExperimental)
 library(mizerHowTo)
-source("utility.R")
-remotes::install_github("sizespectrum/mizerMR")
+source("../additionalResources/utility.R")
+#remotes::install_github("sizespectrum/mizerMR")
 library(mizerMR)
 library(tidyverse)
+
+#devtools::install_github("sizespectrum/mizerExperimental")
+#devtools::install_github("sizespectrum/mizerMR")
 ```
 
 ## Set up multispecies model
@@ -47,7 +49,7 @@ params@species_params$R_max<-params@species_params$w_inf^-1.5
 params@species_params$erepro<-0.01
 params@species_params$h<-80
 # sim <- project(params, t_max = 5)
-# plot(sim)
+plot(sim)
 
 
 # check if start  from scratch
@@ -58,10 +60,10 @@ sim<- project(param, t_max = 200, effort = 0)
 plot(sim)
 
 params<-steady(param)
-plotBiomassVsSpecies(params) ##KP: function doesn't work, not sure what package I'm missing
-plotBiomassObservedVsModel(params) #KP: function doesn't work
+plotBiomassVsSpecies(params) 
+plotBiomassObservedVsModel(params) 
 
-params <- params %>% calibrateBiomass() %>% matchBiomasses() %>% steady() #KP: function doesn't work
+params <- params %>% calibrateBiomass() %>% matchBiomasses() %>% steady() 
 plotBiomassVsSpecies(params)
 
 sim<- project(params, t_max = 200, effort = 0)
@@ -82,7 +84,7 @@ resource_params <- tribble(
     ~resource,  ~kappa, ~lambda, ~r_pp, ~w_min, ~w_max,
  "Resource 1",    0.1,    1.05,   5,   1e-12 ,   100,
  "Resource 2",    10,    2.05,    5,   1e-12,    100,
-  "Resource 3",    0.1,    2.05,   10,   1e-12,    NA,)
+"Resource 3",    0.1,    2.05,   10,   1e-12,    NA,)
 
 
 resource_interaction <- matrix(runif(5*3), nrow = 5, ncol = 3)
@@ -101,19 +103,12 @@ resource_interaction[,3] <-c(0,0,0,1,1)
 params <- setMultipleResources(params, resource_params) #KP: function doesn't work
 #params <- newMRParams(speciesParams, resource_params,inter)
 sim <- project(params, t_max = 200, t_save = 0.2)
-# sim2 <- project(params, t_max = 2, t_save = 0.2, initial_n = sim@n[200,,],initial_n_pp = sim@n_pp[200,])
-animateSpectra(sim)
+sim2 <- project(params, t_max = 2, t_save = 0.2, initial_n = sim@n[200,,],initial_n_pp = sim@n_pp[200,])
+animateSpectra(sim2)
 plotSpectra(sim)
 plotlyBiomass(sim)
 plotlyGrowthCurves(params,percentage = F,
   species_panel = T,max_age = 20)
-
-# need  to re-do Romain's diet plots with the mizerMR  structure
-# plotDiet2(params,species="HMD")
-# plotDiet2(params,species="sessileCorallivore")
-# plotDiet2(params,species="piscivore")
-
-# ask Romain to fix plotDiet
 
 plot(sim) #  note: doesnt show resources but still handy to chekc stuff
 
@@ -123,10 +118,9 @@ params@species_params
 # tuneParams(params)
 # tuned<-readRDS("tuneparams.rds")
 # sim_tuned <- project(tuned, t_max = 200, t_save = 0.2)
-# sim2 <- project(params, t_max = 2, t_save = 0.2, initial_n = 
+#sim2 <- project(params, t_max = 2, t_save = 0.2, initial_n = 
 # plotSpectra(sim_tuned)
 ```
-
 If we cannot live with the mismatch between model and observation biomasses (they  seem OK considering  not log scale?) below we  could set up  an optimisation at this stage. We could use the whole size spectrum for the MPA to have  an even stronger basis for doing  it. Would  need to create size bins that are the same as mizer's from the data but that should not be a problem.
 
 Or else we could carry out fishing scenarios and look at relative changes.
@@ -134,40 +128,36 @@ Or else we could carry out fishing scenarios and look at relative changes.
 Next set up fishing...what questions....which scenarios....what outputs?
 
 ```{r}
-library(mizerExperimental)
-
+# library(mizerExperimental)
 
 ## first re-calibrate and get steady state
 
 plotBiomassVsSpecies(params)
 plotBiomassObservedVsModel(params,ratio=T)
 
-
 sim2<-project(params,t_max=500,t_save = 0.2,effort = 0.0)
-plotSpectra(sim2,power=0)
+# plotSpectra(sim2,power=0)
 plot(sim2)
+saveRDS(sim2, file = "sim2MizerMR.RDS")
+# saveRDS(params2,file= "params2MizerMR.RDS")
+```
 
+```{r}
 params <- params %>% calibrateBiomass() %>% matchBiomasses() %>% steady()
 plotBiomassVsSpecies(params)
 
 params2 <- params
 
-params2 <- params2 %>% calibrateBiomass() %>% matchBiomasses() %>% steady()
+#params2 <- params2 %>% calibrateBiomass() %>% matchBiomasses() %>% steady()
 plotBiomassVsSpecies(params2)
 
 sim2<-project(params,t_max=200,t_save = 0.2,effort = 0.0)
-plotSpectra(sim2,power=0)
+# plotSpectra(sim2,power=0)
 plot(sim2)
 
 ### then add fishing 
 ```
 
-
-Kirsty Adding Fishing....
-```{r}
-paramsfishtest <- setFishing(params, catchability = 0.5, comment_catchability=, initial_effort = 0.5 )
-
-```
 
 ```{r}
 sim2<-project(params2,t_max=200,t_save = 0.2,effort = 0.2)
@@ -183,4 +173,32 @@ plotYieldVsF(params,species = "piscivore")
 plotYieldVsF(params,species = "planktivore")
 
 plotBiomass(sim2)
+
+#?plotYieldVsF
+```
+
+```{r}
+Params3 <- sim2@params
+gear_params(Params3)
+gear_params(Params3)$knife_edge_size<-10 
+
+# gear_params(Params3)$catchability <- #Change this to stop fishing of all species 
+
+#Fishing effort
+sim4<-project(Params3,effort=0.2)
+
+plot(sim4)
+getBiomass(sim4)
+getCommunitySlope(sim4)
+getYield(sim4)
+sim4@n[100,,]
+sim4@n[100,,]/sim2@n[100,,]
+```
+
+```{r}
+plotDietMR(sim4, species="piscivore")
+plotDiet(params, species="planktivore")
+plotDiet(params, species="HMD")
+plotDiet(params, species="sessileCorallivore")
+plotDiet(params, species="mobileinvertivore")
 ```
