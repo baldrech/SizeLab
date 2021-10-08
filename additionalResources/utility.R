@@ -388,21 +388,21 @@ getDietComp2<- function(sim)
 
 
 
-time_range <- max(as.numeric(dimnames(sim@n)$time))
-time_elements <- get_time_elements(sim, time_range)
-n <- apply(sim@n[time_elements, , , drop = FALSE], 
-           c(2, 3), mean)
-n_pp <- apply(sim@n_pp[time_elements, , drop = FALSE], 
-              2, mean)
-# if n_other has only one column, selecting time_elements lose the name for some reasons
-if(dim(sim@n_other)[2] == 1)
-{
-  n_other <- list()
-  n_other[[dimnames(sim@n_other)$component]] <- unlist(sim@n_other[time_elements,])
-} else {
-  n_other <- sim@n_other[time_elements,]
-}
-params <- sim@params
+# time_range <- max(as.numeric(dimnames(sim@n)$time))
+# time_elements <- get_time_elements(sim, time_range)
+# n <- apply(sim@n[time_elements, , , drop = FALSE], 
+#            c(2, 3), mean)
+# n_pp <- apply(sim@n_pp[time_elements, , drop = FALSE], 
+#               2, mean)
+# # if n_other has only one column, selecting time_elements lose the name for some reasons
+# if(dim(sim@n_other)[2] == 1)
+# {
+#   n_other <- list()
+#   n_other[[dimnames(sim@n_other)$component]] <- unlist(sim@n_other[time_elements,])
+# } else {
+#   n_other <- sim@n_other[time_elements,]
+# }
+# params <- sim@params
 
 #' Get diet of predator at size, resolved by prey species
 #'
