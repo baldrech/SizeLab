@@ -176,6 +176,10 @@
 Place holder
 \end{abstract}
 
+{
+\setcounter{tocdepth}{2}
+\tableofcontents
+}
 \hypertarget{introduction}{%
 \section{Introduction}\label{introduction}}
 
@@ -233,8 +237,21 @@ But you need an associated .tex file which is then given to the YAML
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
+\tightlist
 \item
   one (done using 1.)
+\end{enumerate}
+
+\begin{itemize}
+\tightlist
+\item
+  more numbers
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\setcounter{enumi}{1}
+\tightlist
 \item
   two
 \end{enumerate}
@@ -398,12 +415,6 @@ beta & preferred predator/prey mass ratio\\
 \subsection{Auto-numbering and cross-referencing}\label{auto-numbering-and-cross-referencing}}
 
 This is done using the R package \texttt{bookdown}.
-
-\begin{Shaded}
-\begin{Highlighting}[]
-\FunctionTok{library}\NormalTok{(bookdown)}
-\end{Highlighting}
-\end{Shaded}
 
 \begin{Shaded}
 \begin{Highlighting}[]

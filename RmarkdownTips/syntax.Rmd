@@ -5,7 +5,7 @@ author:
   RF
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output:
-  # word_document: default
+   #word_document: default
   bookdown::pdf_document2:
     fig_caption: yes
     keep_tex: yes
@@ -21,7 +21,7 @@ geometry: margin = 1in
 header-includes:
 - \usepackage{setspace}\doublespacing
 - \usepackage[left]{lineno}
-# - \linenumbers
+#- \linenumbers
 - \usepackage{dcolumn}
 - \usepackage{caption}
 - \usepackage{float}
@@ -82,6 +82,8 @@ But you need an associated .tex file which is then given to the YAML
 
 1. one (done using 1.)
 
+  + more numbers
+
 2. two
 
 * not marked using \*
@@ -141,6 +143,11 @@ message: if TRUE, display code messages
 
 warning: if TRUE, display code warnings
 
+```{r, echo=F, include=T}
+
+```
+
+
 
 # Figures
 
@@ -179,6 +186,9 @@ param_description <- data.frame("parameter" = c("w_inf","w_mat","beta"),
 knitr::kable(param_description, caption = "parameters' description")
 ```
 
+
+
+
 \newpage
 
 # The neat stuff
@@ -187,9 +197,6 @@ knitr::kable(param_description, caption = "parameters' description")
 
 This is done using the R package `bookdown`.
 
-```{r}
-library(bookdown)
-```
 
 
 
